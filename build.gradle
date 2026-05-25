@@ -1,5 +1,5 @@
 plugins {
-    id 'fabric-loom' version '1.14-SNAPSHOT'
+    id 'fabric-loom' version '1.10.5'
     id 'maven-publish'
 }
 
@@ -15,7 +15,9 @@ dependencies {
     minecraft "com.mojang:minecraft:${project.minecraft_version}"
     mappings loom.officialMojangMappings()
     modImplementation "net.fabricmc:fabric-loader:${project.loader_version}"
-    modCompileOnly "meteordevelopment:meteor-client:${project.meteor_version}"
+
+    // compileOnly (mod prefix yok) = Loom versiyonu kontrol etmez, sadece derleme classpath'inde
+    compileOnly "meteordevelopment:meteor-client:${project.meteor_version}"
 }
 
 processResources {
