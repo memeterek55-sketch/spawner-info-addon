@@ -2,6 +2,7 @@ package com.example.spawneraddon.modules;
 
 import meteordevelopment.meteorclient.events.render.Render3DEvent;
 import meteordevelopment.meteorclient.events.world.TickEvent;
+import meteordevelopment.meteorclient.renderer.text.TextRenderer;
 import meteordevelopment.meteorclient.settings.*;
 import meteordevelopment.meteorclient.systems.modules.Categories;
 import meteordevelopment.meteorclient.systems.modules.Module;
@@ -24,9 +25,9 @@ import java.util.Set;
 
 public class SpawnerInfo extends Module {
 
-    private final SettingGroup sgGenel    = settings.getDefaultGroup();
-    private final SettingGroup sgGorunum  = settings.createGroup("Görünüm");
-    private final SettingGroup sgRenkler  = settings.createGroup("Renkler");
+    private final SettingGroup sgGenel   = settings.getDefaultGroup();
+    private final SettingGroup sgGorunum = settings.createGroup("Görünüm");
+    private final SettingGroup sgRenkler = settings.createGroup("Renkler");
 
     // --- Genel ---
     private final Setting<Integer> menzil = sgGenel.add(new IntSetting.Builder()
@@ -110,7 +111,11 @@ public class SpawnerInfo extends Module {
 
         for (int cx = -chunkYaricap; cx <= chunkYaricap; cx++) {
             for (int cz = -chunkYaricap; cz <= chunkYaricap; cz++) {
-                WorldChunk chunk = mc.world.getChunk(merkez.x + cx, merkez.z + cz);
+                // getWorldChunk null döndürür (yüklenmemiş chunk'lar için güvenli)
+                WorldChunk chunk = mc.world.getChunkManager()
+                    .getWorldChunk(merkez.x + cx, merkez.z + cz);
+                if (chunk == null) continue;
+
                 for (BlockEntity be : chunk.getBlockEntities().values()) {
                     if (!(be instanceof MobSpawnerBlockEntity spawnerBE)) continue;
 
@@ -149,31 +154,28 @@ public class SpawnerInfo extends Module {
             if (!NametagUtils.to2D(pos, yaziOlcegi.get())) continue;
             NametagUtils.begin(pos);
 
+            // begin/end sadece bir kez çağrılıyor — her satır için ayrı ayrı çağırmak crash verir
+            TextRenderer tr = TextRenderer.get();
+            tr.begin(yaziOlcegi.get(), false, true);
+
             float yOffset = 0;
 
             if (turGoster.get()) {
-                String satir1 = "§lTür: " + kayit.tur;
-                metin(satir1, yOffset, turRengi.get());
+                String satir = "Tür: " + kayit.tur;
+                float w = (float) tr.getWidth(satir, false);
+                tr.render(satir, -w / 2f, yOffset, turRengi.get(), false);
                 yOffset += 10;
             }
 
             if (mesafeGoster.get()) {
-                String satir2 = String.format("%.1f blok", kayit.mesafe);
-                metin(satir2, yOffset, mesafeRengi.get());
+                String satir = String.format("%.1f blok", kayit.mesafe);
+                float w = (float) tr.getWidth(satir, false);
+                tr.render(satir, -w / 2f, yOffset, mesafeRengi.get(), false);
             }
 
+            tr.end();
             NametagUtils.end();
         }
-    }
-
-    private void metin(String yazi, float yOffset,
-                       meteordevelopment.meteorclient.utils.render.color.Color renk) {
-        meteordevelopment.meteorclient.renderer.text.TextRenderer tr =
-            meteordevelopment.meteorclient.renderer.text.TextRenderer.get();
-        tr.begin(1.0, false, true);
-        float w = (float) tr.getWidth(yazi, false);
-        tr.render(yazi, -w / 2f, yOffset, renk, false);
-        tr.end();
     }
 
     private String spawnerTuruAl(MobSpawnerBlockEntity spawnerBE) {
@@ -181,36 +183,39 @@ public class SpawnerInfo extends Module {
             NbtCompound nbt = spawnerBE.createNbt(mc.world.getRegistryManager());
             String rawId = "";
 
-            if (nbt.contains("SpawnData")) {
-                NbtCompound sd = nbt.getCompound("SpawnData");
-                if (sd.contains("entity")) rawId = sd.getCompound("entity").getString("id");
-            } else if (nbt.contains("spawn_data")) {
-                NbtCompound sd = nbt.getCompound("spawn_data");
-                if (sd.contains("entity")) rawId = sd.getCompound("entity").getString("id");
+            // 1.21.x hem "SpawnData" hem "spawn_data" anahtarını destekle
+            for (String key : new String[]{"SpawnData", "spawn_data"}) {
+                if (nbt.contains(key)) {
+                    NbtCompound sd = nbt.getCompound(key);
+                    if (sd.contains("entity")) {
+                        rawId = sd.getCompound("entity").getString("id");
+                        break;
+                    }
+                }
             }
 
             String path = rawId.contains(":") ? rawId.split(":")[1] : rawId;
             if (path.isBlank()) return "Bilinmiyor";
 
             return switch (path) {
-                case "zombie"            -> "Zombie";
-                case "skeleton"          -> "İskelet";
-                case "spider"            -> "Örümcek";
-                case "cave_spider"       -> "Mağara Örümceği";
-                case "blaze"             -> "Blaze";
-                case "creeper"           -> "Creeper";
-                case "magma_cube"        -> "Magma Küpü";
-                case "silverfish"        -> "Gümüş Balık";
-                case "endermite"         -> "Endermite";
-                case "piglin"            -> "Piglin";
-                case "zombified_piglin"  -> "Zombie Piglin";
-                case "husk"              -> "Husk";
-                case "stray"             -> "Stray";
-                case "wither_skeleton"   -> "Wither İskelet";
-                case "guardian"          -> "Guardian";
-                case "drowned"           -> "Drowned";
-                case "zombie_villager"   -> "Zombie Köylü";
-                default                  -> kelimeBuyut(path.replace("_", " "));
+                case "zombie"           -> "Zombie";
+                case "skeleton"         -> "İskelet";
+                case "spider"           -> "Örümcek";
+                case "cave_spider"      -> "Mağara Örümceği";
+                case "blaze"            -> "Blaze";
+                case "creeper"          -> "Creeper";
+                case "magma_cube"       -> "Magma Küpü";
+                case "silverfish"       -> "Gümüş Balık";
+                case "endermite"        -> "Endermite";
+                case "piglin"           -> "Piglin";
+                case "zombified_piglin" -> "Zombie Piglin";
+                case "husk"             -> "Husk";
+                case "stray"            -> "Stray";
+                case "wither_skeleton"  -> "Wither İskelet";
+                case "guardian"         -> "Guardian";
+                case "drowned"          -> "Drowned";
+                case "zombie_villager"  -> "Zombie Köylü";
+                default                 -> kelimeBuyut(path.replace("_", " "));
             };
         } catch (Exception e) {
             return "Bilinmiyor";
@@ -233,8 +238,11 @@ public class SpawnerInfo extends Module {
         final BlockPos pos;
         final String tur;
         final double mesafe;
+
         SpawnerKaydi(BlockPos pos, String tur, double mesafe) {
-            this.pos = pos; this.tur = tur; this.mesafe = mesafe;
+            this.pos = pos;
+            this.tur = tur;
+            this.mesafe = mesafe;
         }
     }
 }
