@@ -28,21 +28,6 @@ jobs:
       - name: Grant execute permission for gradlew
         run: chmod +x gradlew
 
-      - name: Download and patch Meteor Client
-        run: |
-          mkdir -p libs
-          METEOR_URL="https://maven.meteordev.org/snapshots/meteordevelopment/meteor-client/1.21.11-SNAPSHOT/meteor-client-1.21.11-20260425.202124-82.jar"
-          curl -L -o libs/meteor-client-raw.jar "$METEOR_URL"
-          # MANIFEST.MF'den Fabric-Loom-Version satırını sil (Loom version check'i atlamak için)
-          mkdir -p /tmp/meteor-extract
-          cd /tmp/meteor-extract
-          jar xf $GITHUB_WORKSPACE/libs/meteor-client-raw.jar
-          if [ -f META-INF/MANIFEST.MF ]; then
-            sed -i '/^Fabric-Loom-Version/d' META-INF/MANIFEST.MF
-          fi
-          jar cf $GITHUB_WORKSPACE/libs/meteor-client-dev.jar .
-          echo "Meteor Client patched successfully"
-
       - name: Build with Gradle
         run: ./gradlew build
 
