@@ -2,17 +2,21 @@
   "schemaVersion": 1,
   "id": "spawner-info-addon",
   "version": "${version}",
-  "name": "Spawner Info Addon",
-  "description": "Spawner türünü ve mesafesini gösterir, chat'e bilgi atar.",
-  "authors": ["YourName"],
+  "name": "Spawner Info",
+  "description": "Spawner türünü ve mesafesini gösterir.",
+  "authors": ["memeterek55-sketch"],
   "environment": "client",
   "entrypoints": {
+    "client": [
+      "com.example.spawneraddon.SpawnerAddon"
+    ],
     "meteor": [
       "com.example.spawneraddon.SpawnerAddon"
     ]
   },
   "depends": {
     "fabricloader": ">=0.15.0",
+    "minecraft": "~1.21.1",
     "meteor-client": "*"
   }
 }
