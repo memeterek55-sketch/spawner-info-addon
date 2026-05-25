@@ -6,7 +6,6 @@ import meteordevelopment.meteorclient.settings.*;
 import meteordevelopment.meteorclient.systems.modules.Module;
 import meteordevelopment.meteorclient.systems.modules.Categories;
 import meteordevelopment.meteorclient.utils.render.NametagUtils;
-import meteordevelopment.meteorclient.utils.render.color.Color;
 import meteordevelopment.meteorclient.utils.render.color.SettingColor;
 import meteordevelopment.orbit.EventHandler;
 import net.minecraft.block.entity.BlockEntity;
@@ -25,80 +24,109 @@ import java.util.Set;
 
 public class SpawnerInfo extends Module {
 
-    private final SettingGroup sgGeneral = settings.getDefaultGroup();
+    private final SettingGroup sgGenel    = settings.getDefaultGroup();
+    private final SettingGroup sgGorunum  = settings.createGroup("Görünüm");
+    private final SettingGroup sgRenkler  = settings.createGroup("Renkler");
 
-    private final Setting<Integer> range = sgGeneral.add(new IntSetting.Builder()
+    // --- Genel ---
+    private final Setting<Integer> menzil = sgGenel.add(new IntSetting.Builder()
         .name("menzil")
-        .description("Spawner'ları kaç blok mesafede tespit etsin.")
+        .description("Spawner tespiti için maksimum mesafe (blok).")
         .defaultValue(32)
         .min(1)
         .sliderMax(128)
         .build()
     );
 
-    private final Setting<Boolean> chatMessage = sgGeneral.add(new BoolSetting.Builder()
+    private final Setting<Boolean> chatMesaj = sgGenel.add(new BoolSetting.Builder()
         .name("chat-mesaj")
-        .description("Yeni spawner bulunduğunda chat'e mesaj atsın.")
+        .description("Yeni spawner bulununca chat'e bilgi atsın.")
         .defaultValue(true)
         .build()
     );
 
-    private final Setting<SettingColor> textColor = sgGeneral.add(new ColorSetting.Builder()
-        .name("yazi-rengi")
-        .description("Spawner etiketinin rengi.")
+    // --- Görünüm ---
+    private final Setting<Boolean> turGoster = sgGorunum.add(new BoolSetting.Builder()
+        .name("tur-goster")
+        .description("Spawner türünü etiket olarak göster.")
+        .defaultValue(true)
+        .build()
+    );
+
+    private final Setting<Boolean> mesafeGoster = sgGorunum.add(new BoolSetting.Builder()
+        .name("mesafe-goster")
+        .description("Spawner mesafesini etiket olarak göster.")
+        .defaultValue(true)
+        .build()
+    );
+
+    private final Setting<Double> yaziOlcegi = sgGorunum.add(new DoubleSetting.Builder()
+        .name("yazi-olcegi")
+        .description("Etiket yazı boyutu.")
+        .defaultValue(1.0)
+        .min(0.2)
+        .sliderMax(3.0)
+        .build()
+    );
+
+    // --- Renkler ---
+    private final Setting<SettingColor> turRengi = sgRenkler.add(new ColorSetting.Builder()
+        .name("tur-rengi")
+        .description("Spawner türü yazısının rengi.")
         .defaultValue(new SettingColor(255, 165, 0, 255))
         .build()
     );
 
-    private final Setting<SettingColor> distanceColor = sgGeneral.add(new ColorSetting.Builder()
+    private final Setting<SettingColor> mesafeRengi = sgRenkler.add(new ColorSetting.Builder()
         .name("mesafe-rengi")
         .description("Mesafe yazısının rengi.")
         .defaultValue(new SettingColor(255, 255, 255, 255))
         .build()
     );
 
-    private final Set<BlockPos> announcedSpawners = new HashSet<>();
-    private final List<SpawnerEntry> nearbySpawners = new ArrayList<>();
+    private final Set<BlockPos> duyurulanlar = new HashSet<>();
+    private final List<SpawnerKaydi> yakinSpawnerlar = new ArrayList<>();
 
     public SpawnerInfo() {
-        super(Categories.Render, "spawner-info", "Yakındaki spawner'ların türünü ve mesafesini gösterir.");
+        super(Categories.Render, "spawner-info",
+            "Yakındaki spawnerların türünü ve mesafesini gösterir.");
     }
 
     @Override
     public void onDeactivate() {
-        announcedSpawners.clear();
-        nearbySpawners.clear();
+        duyurulanlar.clear();
+        yakinSpawnerlar.clear();
     }
 
     @EventHandler
     private void onTick(TickEvent.Pre event) {
         if (mc.world == null || mc.player == null) return;
 
-        nearbySpawners.clear();
-        Vec3d playerPos = mc.player.getPos();
-        int r = range.get();
-        int chunkRadius = (r >> 4) + 1;
-        ChunkPos center = mc.player.getChunkPos();
+        yakinSpawnerlar.clear();
+        Vec3d oyuncuPos = mc.player.getPos();
+        int r = menzil.get();
+        int chunkYaricap = (r >> 4) + 1;
+        ChunkPos merkez = mc.player.getChunkPos();
 
-        for (int cx = -chunkRadius; cx <= chunkRadius; cx++) {
-            for (int cz = -chunkRadius; cz <= chunkRadius; cz++) {
-                WorldChunk chunk = mc.world.getChunk(center.x + cx, center.z + cz);
+        for (int cx = -chunkYaricap; cx <= chunkYaricap; cx++) {
+            for (int cz = -chunkYaricap; cz <= chunkYaricap; cz++) {
+                WorldChunk chunk = mc.world.getChunk(merkez.x + cx, merkez.z + cz);
                 for (BlockEntity be : chunk.getBlockEntities().values()) {
                     if (!(be instanceof MobSpawnerBlockEntity spawnerBE)) continue;
 
                     BlockPos pos = be.getPos();
-                    double dist = playerPos.distanceTo(
+                    double dist = oyuncuPos.distanceTo(
                         new Vec3d(pos.getX() + 0.5, pos.getY() + 0.5, pos.getZ() + 0.5)
                     );
                     if (dist > r) continue;
 
-                    String entityName = getSpawnerEntityName(spawnerBE);
-                    nearbySpawners.add(new SpawnerEntry(pos, entityName, dist));
+                    String tur = spawnerTuruAl(spawnerBE);
+                    yakinSpawnerlar.add(new SpawnerKaydi(pos, tur, dist));
 
-                    if (chatMessage.get() && !announcedSpawners.contains(pos)) {
-                        announcedSpawners.add(pos);
+                    if (chatMesaj.get() && !duyurulanlar.contains(pos)) {
+                        duyurulanlar.add(pos);
                         info("§6[SpawnerInfo] §fYeni spawner! §eTür: §a"
-                            + entityName + " §f| §eMesafe: §a"
+                            + tur + " §f| §eMesafe: §a"
                             + String.format("%.1f", dist) + " blok");
                     }
                 }
@@ -109,106 +137,104 @@ public class SpawnerInfo extends Module {
     @EventHandler
     private void onRender3D(Render3DEvent event) {
         if (mc.player == null) return;
+        if (!turGoster.get() && !mesafeGoster.get()) return;
 
-        for (SpawnerEntry entry : nearbySpawners) {
+        for (SpawnerKaydi kayit : yakinSpawnerlar) {
             Vector3d pos = new Vector3d(
-                entry.pos.getX() + 0.5,
-                entry.pos.getY() + 1.8,
-                entry.pos.getZ() + 0.5
+                kayit.pos.getX() + 0.5,
+                kayit.pos.getY() + 2.0,
+                kayit.pos.getZ() + 0.5
             );
 
-            if (!NametagUtils.to2D(pos, 1.0)) continue;
-
+            if (!NametagUtils.to2D(pos, yaziOlcegi.get())) continue;
             NametagUtils.begin(pos);
 
-            String line1 = "Tür: " + entry.entityName;
-            String line2 = String.format("Mesafe: %.1f blok", entry.distance);
+            float yOffset = 0;
 
-            renderLine(line1, -10, textColor.get());
-            renderLine(line2, 0, distanceColor.get());
+            if (turGoster.get()) {
+                String satir1 = "§lTür: " + kayit.tur;
+                metin(satir1, yOffset, turRengi.get());
+                yOffset += 10;
+            }
+
+            if (mesafeGoster.get()) {
+                String satir2 = String.format("%.1f blok", kayit.mesafe);
+                metin(satir2, yOffset, mesafeRengi.get());
+            }
 
             NametagUtils.end();
         }
     }
 
-    private void renderLine(String text, float yOffset, Color color) {
+    private void metin(String yazi, float yOffset,
+                       meteordevelopment.meteorclient.utils.render.color.Color renk) {
         meteordevelopment.meteorclient.renderer.text.TextRenderer tr =
             meteordevelopment.meteorclient.renderer.text.TextRenderer.get();
         tr.begin(1.0, false, true);
-        float w = (float) tr.getWidth(text, false);
-        tr.render(text, -w / 2f, yOffset, color, false);
+        float w = (float) tr.getWidth(yazi, false);
+        tr.render(yazi, -w / 2f, yOffset, renk, false);
         tr.end();
     }
 
-    private String getSpawnerEntityName(MobSpawnerBlockEntity spawnerBE) {
+    private String spawnerTuruAl(MobSpawnerBlockEntity spawnerBE) {
         try {
             NbtCompound nbt = spawnerBE.createNbt(mc.world.getRegistryManager());
-
-            String rawId = "bilinmiyor";
+            String rawId = "";
 
             if (nbt.contains("SpawnData")) {
-                NbtCompound spawnData = nbt.getCompound("SpawnData");
-                if (spawnData.contains("entity")) {
-                    NbtCompound entity = spawnData.getCompound("entity");
-                    rawId = entity.getString("id");
-                }
+                NbtCompound sd = nbt.getCompound("SpawnData");
+                if (sd.contains("entity")) rawId = sd.getCompound("entity").getString("id");
             } else if (nbt.contains("spawn_data")) {
-                NbtCompound spawnData = nbt.getCompound("spawn_data");
-                if (spawnData.contains("entity")) {
-                    NbtCompound entity = spawnData.getCompound("entity");
-                    rawId = entity.getString("id");
-                }
+                NbtCompound sd = nbt.getCompound("spawn_data");
+                if (sd.contains("entity")) rawId = sd.getCompound("entity").getString("id");
             }
 
             String path = rawId.contains(":") ? rawId.split(":")[1] : rawId;
+            if (path.isBlank()) return "Bilinmiyor";
 
             return switch (path) {
-                case "zombie"           -> "Zombie";
-                case "skeleton"         -> "İskelet";
-                case "spider"           -> "Örümcek";
-                case "cave_spider"      -> "Mağara Örümceği";
-                case "blaze"            -> "Blaze";
-                case "creeper"          -> "Creeper";
-                case "magma_cube"       -> "Magma Küpü";
-                case "silverfish"       -> "Gümüş Balık";
-                case "endermite"        -> "Endermite";
-                case "piglin"           -> "Piglin";
-                case "zombified_piglin" -> "Zombie Piglin";
-                case "husk"             -> "Husk";
-                case "stray"            -> "Stray";
-                case "wither_skeleton"  -> "Wither İskelet";
-                case "guardian"         -> "Guardian";
-                case "elder_guardian"   -> "Elder Guardian";
-                case "drowned"          -> "Drowned";
-                default                 -> capitalize(path.replace("_", " "));
+                case "zombie"            -> "Zombie";
+                case "skeleton"          -> "İskelet";
+                case "spider"            -> "Örümcek";
+                case "cave_spider"       -> "Mağara Örümceği";
+                case "blaze"             -> "Blaze";
+                case "creeper"           -> "Creeper";
+                case "magma_cube"        -> "Magma Küpü";
+                case "silverfish"        -> "Gümüş Balık";
+                case "endermite"         -> "Endermite";
+                case "piglin"            -> "Piglin";
+                case "zombified_piglin"  -> "Zombie Piglin";
+                case "husk"              -> "Husk";
+                case "stray"             -> "Stray";
+                case "wither_skeleton"   -> "Wither İskelet";
+                case "guardian"          -> "Guardian";
+                case "drowned"           -> "Drowned";
+                case "zombie_villager"   -> "Zombie Köylü";
+                default                  -> kelimeBuyut(path.replace("_", " "));
             };
         } catch (Exception e) {
             return "Bilinmiyor";
         }
     }
 
-    private String capitalize(String s) {
-        if (s == null || s.isEmpty()) return s;
+    private String kelimeBuyut(String s) {
+        if (s == null || s.isBlank()) return s;
         StringBuilder sb = new StringBuilder();
         for (String w : s.split(" ")) {
             if (!w.isEmpty()) {
                 sb.append(Character.toUpperCase(w.charAt(0)));
-                sb.append(w.substring(1).toLowerCase());
-                sb.append(" ");
+                sb.append(w.substring(1).toLowerCase()).append(" ");
             }
         }
         return sb.toString().trim();
     }
 
-    private static class SpawnerEntry {
+    private static class SpawnerKaydi {
         final BlockPos pos;
-        final String entityName;
-        final double distance;
-
-        SpawnerEntry(BlockPos pos, String entityName, double distance) {
-            this.pos = pos;
-            this.entityName = entityName;
-            this.distance = distance;
+        final String tur;
+        final double mesafe;
+        SpawnerKaydi(BlockPos pos, String tur, double mesafe) {
+            this.pos = pos; this.tur = tur; this.mesafe = mesafe;
         }
     }
 }
