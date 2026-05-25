@@ -117,8 +117,8 @@ public class SpawnerInfo extends Module {
                 entry.pos.getZ() + 0.5
             );
 
-            Vector3d screenPos = new Vector3d();
-            if (!NametagUtils.to2D(worldPos, 1.0, screenPos)) continue;
+            Vector3d screenPos = NametagUtils.to2D(worldPos, 1.0);
+            if (screenPos == null) continue;
 
             NametagUtils.begin(screenPos);
 
@@ -143,8 +143,7 @@ public class SpawnerInfo extends Module {
 
     private String getSpawnerEntityName(MobSpawnerBlockEntity spawnerBE) {
         try {
-            NbtCompound nbt = new NbtCompound();
-            spawnerBE.writeNbt(nbt, mc.world.getRegistryManager());
+            NbtCompound nbt = spawnerBE.createNbt(mc.world.getRegistryManager());
 
             String rawId = "bilinmiyor";
 
