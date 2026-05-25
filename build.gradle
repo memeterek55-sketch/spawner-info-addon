@@ -15,9 +15,8 @@ dependencies {
     minecraft "com.mojang:minecraft:${project.minecraft_version}"
     mappings loom.officialMojangMappings()
     modImplementation "net.fabricmc:fabric-loader:${project.loader_version}"
-
-    // compileOnly (mod prefix yok) = Loom versiyonu kontrol etmez, sadece derleme classpath'inde
-    compileOnly "meteordevelopment:meteor-client:${project.meteor_version}"
+    // Meteor JAR workflow tarafından indirilip manifest strip edildikten sonra
+    modCompileOnly files("libs/meteor-client-dev.jar")
 }
 
 processResources {
