@@ -1,5 +1,5 @@
 plugins {
-    id 'fabric-loom' version '1.10.5'
+    id 'fabric-loom' version '1.14.10'
     id 'maven-publish'
 }
 
@@ -15,7 +15,6 @@ dependencies {
     minecraft "com.mojang:minecraft:${project.minecraft_version}"
     mappings loom.officialMojangMappings()
     modImplementation "net.fabricmc:fabric-loader:${project.loader_version}"
-    // Fabric API, Meteor Client içinde geliyor — ayrıca eklemek Javadoc namespace çakışmasına neden olur
     modCompileOnly "meteordevelopment:meteor-client:${project.meteor_version}"
 }
 
