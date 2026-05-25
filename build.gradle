@@ -37,3 +37,9 @@ jar {
         rename { "${it}_${project.archivesBaseName}" }
     }
 }
+
+compileJava.doFirst {
+    println "=== COMPILE CLASSPATH ==="
+    classpath.each { println "  CP: ${it}" }
+    println "========================="
+}
