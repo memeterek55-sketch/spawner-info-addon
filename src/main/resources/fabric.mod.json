@@ -7,9 +7,6 @@
   "authors": ["memeterek55-sketch"],
   "environment": "client",
   "entrypoints": {
-    "client": [
-      "com.example.spawneraddon.SpawnerAddon"
-    ],
     "meteor": [
       "com.example.spawneraddon.SpawnerAddon"
     ]
