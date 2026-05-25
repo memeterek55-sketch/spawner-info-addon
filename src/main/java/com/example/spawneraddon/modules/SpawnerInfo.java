@@ -117,8 +117,8 @@ public class SpawnerInfo extends Module {
                 entry.pos.getZ() + 0.5
             );
 
-            Vector3d screenPos = NametagUtils.to2D(worldPos, 1.0);
-            if (screenPos == null) continue;
+            Vector3d screenPos = new Vector3d();
+            if (!NametagUtils.to2D(worldPos, 1.0, screenPos)) continue;
 
             NametagUtils.begin(screenPos);
 
