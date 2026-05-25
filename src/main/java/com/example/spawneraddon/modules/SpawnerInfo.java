@@ -3,8 +3,8 @@ package com.example.spawneraddon.modules;
 import meteordevelopment.meteorclient.events.render.Render3DEvent;
 import meteordevelopment.meteorclient.events.world.TickEvent;
 import meteordevelopment.meteorclient.settings.*;
+import com.example.spawneraddon.SpawnerAddon;
 import meteordevelopment.meteorclient.systems.modules.Module;
-import meteordevelopment.meteorclient.systems.modules.Categories;
 import meteordevelopment.meteorclient.utils.render.NametagUtils;
 import meteordevelopment.meteorclient.utils.render.color.SettingColor;
 import meteordevelopment.orbit.EventHandler;
@@ -88,7 +88,7 @@ public class SpawnerInfo extends Module {
     private final List<SpawnerKaydi> yakinSpawnerlar = new ArrayList<>();
 
     public SpawnerInfo() {
-        super(Categories.Render, "spawner-info",
+        super(SpawnerAddon.KATEGORI, "spawner-info",
             "Yakındaki spawnerların türünü ve mesafesini gösterir.");
     }
 
