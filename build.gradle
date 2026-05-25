@@ -1,5 +1,5 @@
 plugins {
-    id 'fabric-loom' version '1.10.5'
+    id 'fabric-loom' version '1.16.2'
     id 'maven-publish'
 }
 
@@ -15,8 +15,7 @@ dependencies {
     minecraft "com.mojang:minecraft:${project.minecraft_version}"
     mappings loom.officialMojangMappings()
     modImplementation "net.fabricmc:fabric-loader:${project.loader_version}"
-    // Meteor JAR workflow tarafından indirilip manifest strip edildikten sonra
-    modCompileOnly files("libs/meteor-client-dev.jar")
+    modCompileOnly "meteordevelopment:meteor-client:${project.meteor_version}"
 }
 
 processResources {
