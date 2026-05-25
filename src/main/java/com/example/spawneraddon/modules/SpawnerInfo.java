@@ -29,7 +29,6 @@ public class SpawnerInfo extends Module {
     private final SettingGroup sgGorunum = settings.createGroup("Görünüm");
     private final SettingGroup sgRenkler = settings.createGroup("Renkler");
 
-    // --- Genel ---
     private final Setting<Integer> menzil = sgGenel.add(new IntSetting.Builder()
         .name("menzil")
         .description("Spawner tespiti için maksimum mesafe (blok).")
@@ -46,7 +45,6 @@ public class SpawnerInfo extends Module {
         .build()
     );
 
-    // --- Görünüm ---
     private final Setting<Boolean> turGoster = sgGorunum.add(new BoolSetting.Builder()
         .name("tur-goster")
         .description("Spawner türünü etiket olarak göster.")
@@ -70,7 +68,6 @@ public class SpawnerInfo extends Module {
         .build()
     );
 
-    // --- Renkler ---
     private final Setting<SettingColor> turRengi = sgRenkler.add(new ColorSetting.Builder()
         .name("tur-rengi")
         .description("Spawner türü yazısının rengi.")
@@ -85,33 +82,36 @@ public class SpawnerInfo extends Module {
         .build()
     );
 
-    private final Set<BlockPos> duyurulanlar = new HashSet<>();
-    private final List<SpawnerKaydi> yakinSpawnerlar = new ArrayList<>();
+    private final Set<BlockPos> duyurulanlar    = new HashSet<>();
+    private final List<SpawnerKaydi> spawnerlar = new ArrayList<>();
 
     public SpawnerInfo() {
         super(Categories.Render, "spawner-info",
-            "Yakındaki spawnerların türünü ve mesafesini gösterir.");
+            "Yakındaki spawnerların türünü ve mesafesini 3D etiketle gösterir.");
     }
 
     @Override
     public void onDeactivate() {
         duyurulanlar.clear();
-        yakinSpawnerlar.clear();
+        spawnerlar.clear();
     }
 
     @EventHandler
     private void onTick(TickEvent.Pre event) {
         if (mc.world == null || mc.player == null) return;
 
-        yakinSpawnerlar.clear();
+        spawnerlar.clear();
+
         Vec3d oyuncuPos = mc.player.getPos();
-        int r = menzil.get();
+        int r            = menzil.get();
         int chunkYaricap = (r >> 4) + 1;
-        ChunkPos merkez = mc.player.getChunkPos();
+
+        // 1.21.11'de getChunkPos() kaldırıldı — BlockPos üzerinden ChunkPos yap
+        ChunkPos merkez = new ChunkPos(mc.player.getBlockPos());
 
         for (int cx = -chunkYaricap; cx <= chunkYaricap; cx++) {
             for (int cz = -chunkYaricap; cz <= chunkYaricap; cz++) {
-                // getWorldChunk null döndürür (yüklenmemiş chunk'lar için güvenli)
+                // getWorldChunk: yüklenmemişse null döner, asla crash vermez
                 WorldChunk chunk = mc.world.getChunkManager()
                     .getWorldChunk(merkez.x + cx, merkez.z + cz);
                 if (chunk == null) continue;
@@ -119,17 +119,15 @@ public class SpawnerInfo extends Module {
                 for (BlockEntity be : chunk.getBlockEntities().values()) {
                     if (!(be instanceof MobSpawnerBlockEntity spawnerBE)) continue;
 
-                    BlockPos pos = be.getPos();
-                    double dist = oyuncuPos.distanceTo(
-                        new Vec3d(pos.getX() + 0.5, pos.getY() + 0.5, pos.getZ() + 0.5)
-                    );
+                    BlockPos pos  = be.getPos();
+                    Vec3d center  = new Vec3d(pos.getX() + 0.5, pos.getY() + 0.5, pos.getZ() + 0.5);
+                    double dist   = oyuncuPos.distanceTo(center);
                     if (dist > r) continue;
 
                     String tur = spawnerTuruAl(spawnerBE);
-                    yakinSpawnerlar.add(new SpawnerKaydi(pos, tur, dist));
+                    spawnerlar.add(new SpawnerKaydi(pos, tur, dist));
 
-                    if (chatMesaj.get() && !duyurulanlar.contains(pos)) {
-                        duyurulanlar.add(pos);
+                    if (chatMesaj.get() && duyurulanlar.add(pos)) {
                         info("§6[SpawnerInfo] §fYeni spawner! §eTür: §a"
                             + tur + " §f| §eMesafe: §a"
                             + String.format("%.1f", dist) + " blok");
@@ -144,33 +142,32 @@ public class SpawnerInfo extends Module {
         if (mc.player == null) return;
         if (!turGoster.get() && !mesafeGoster.get()) return;
 
-        for (SpawnerKaydi kayit : yakinSpawnerlar) {
+        for (SpawnerKaydi kayit : spawnerlar) {
             Vector3d pos = new Vector3d(
                 kayit.pos.getX() + 0.5,
-                kayit.pos.getY() + 2.0,
+                kayit.pos.getY() + 2.2,
                 kayit.pos.getZ() + 0.5
             );
 
             if (!NametagUtils.to2D(pos, yaziOlcegi.get())) continue;
+
             NametagUtils.begin(pos);
 
-            // begin/end sadece bir kez çağrılıyor — her satır için ayrı ayrı çağırmak crash verir
+            // begin/end BİR KEZ — birden fazla çağırmak crash verir
             TextRenderer tr = TextRenderer.get();
             tr.begin(yaziOlcegi.get(), false, true);
 
-            float yOffset = 0;
+            float yOff = 0;
 
             if (turGoster.get()) {
-                String satir = "Tür: " + kayit.tur;
-                float w = (float) tr.getWidth(satir, false);
-                tr.render(satir, -w / 2f, yOffset, turRengi.get(), false);
-                yOffset += 10;
+                String line = "Tür: " + kayit.tur;
+                tr.render(line, -(float) tr.getWidth(line, false) / 2f, yOff, turRengi.get(), false);
+                yOff += 10;
             }
 
             if (mesafeGoster.get()) {
-                String satir = String.format("%.1f blok", kayit.mesafe);
-                float w = (float) tr.getWidth(satir, false);
-                tr.render(satir, -w / 2f, yOffset, mesafeRengi.get(), false);
+                String line = String.format("%.1f blok", kayit.mesafe);
+                tr.render(line, -(float) tr.getWidth(line, false) / 2f, yOff, mesafeRengi.get(), false);
             }
 
             tr.end();
@@ -178,12 +175,11 @@ public class SpawnerInfo extends Module {
         }
     }
 
-    private String spawnerTuruAl(MobSpawnerBlockEntity spawnerBE) {
+    private String spawnerTuruAl(MobSpawnerBlockEntity be) {
         try {
-            NbtCompound nbt = spawnerBE.createNbt(mc.world.getRegistryManager());
-            String rawId = "";
+            NbtCompound nbt = be.createNbt(mc.world.getRegistryManager());
+            String rawId    = "";
 
-            // 1.21.x hem "SpawnData" hem "spawn_data" anahtarını destekle
             for (String key : new String[]{"SpawnData", "spawn_data"}) {
                 if (nbt.contains(key)) {
                     NbtCompound sd = nbt.getCompound(key);
@@ -234,15 +230,5 @@ public class SpawnerInfo extends Module {
         return sb.toString().trim();
     }
 
-    private static class SpawnerKaydi {
-        final BlockPos pos;
-        final String tur;
-        final double mesafe;
-
-        SpawnerKaydi(BlockPos pos, String tur, double mesafe) {
-            this.pos = pos;
-            this.tur = tur;
-            this.mesafe = mesafe;
-        }
-    }
+    private record SpawnerKaydi(BlockPos pos, String tur, double mesafe) {}
 }
