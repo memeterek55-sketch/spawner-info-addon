@@ -111,16 +111,15 @@ public class SpawnerInfo extends Module {
         if (mc.player == null) return;
 
         for (SpawnerEntry entry : nearbySpawners) {
-            Vector3d worldPos = new Vector3d(
+            Vector3d pos = new Vector3d(
                 entry.pos.getX() + 0.5,
                 entry.pos.getY() + 1.8,
                 entry.pos.getZ() + 0.5
             );
 
-            Vector3d screenPos = new Vector3d();
-            if (!NametagUtils.to2D(worldPos, 1.0, screenPos)) continue;
+            if (!NametagUtils.to2D(pos, 1.0)) continue;
 
-            NametagUtils.begin(screenPos);
+            NametagUtils.begin(pos);
 
             String line1 = "Tür: " + entry.entityName;
             String line2 = String.format("Mesafe: %.1f blok", entry.distance);
