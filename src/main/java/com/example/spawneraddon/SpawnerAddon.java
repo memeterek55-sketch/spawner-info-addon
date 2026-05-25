@@ -10,6 +10,11 @@ public class SpawnerAddon extends MeteorAddon {
     public static final Category KATEGORI = new Category("SpawnerInfo");
 
     @Override
+    public void addCategories() {
+        Modules.get().addCategory(KATEGORI);
+    }
+
+    @Override
     public void onInitialize() {
         Modules.get().add(new SpawnerInfo());
     }
