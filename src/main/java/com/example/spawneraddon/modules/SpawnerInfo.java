@@ -2,7 +2,6 @@ package com.example.spawneraddon.modules;
 
 import meteordevelopment.meteorclient.events.render.Render3DEvent;
 import meteordevelopment.meteorclient.events.world.TickEvent;
-import meteordevelopment.meteorclient.renderer.ShapeMode;
 import meteordevelopment.meteorclient.settings.*;
 import meteordevelopment.meteorclient.systems.modules.Module;
 import meteordevelopment.meteorclient.systems.modules.Categories;
@@ -12,9 +11,11 @@ import meteordevelopment.meteorclient.utils.render.color.SettingColor;
 import meteordevelopment.orbit.EventHandler;
 import net.minecraft.block.entity.BlockEntity;
 import net.minecraft.block.entity.MobSpawnerBlockEntity;
-import net.minecraft.entity.EntityType;
+import net.minecraft.nbt.NbtCompound;
 import net.minecraft.util.math.BlockPos;
+import net.minecraft.util.math.ChunkPos;
 import net.minecraft.util.math.Vec3d;
+import net.minecraft.world.chunk.WorldChunk;
 import org.joml.Vector3d;
 
 import java.util.ArrayList;
@@ -76,20 +77,31 @@ public class SpawnerInfo extends Module {
         nearbySpawners.clear();
         Vec3d playerPos = mc.player.getPos();
         int r = range.get();
+        int chunkRadius = (r >> 4) + 1;
+        ChunkPos center = mc.player.getChunkPos();
 
-        for (BlockEntity be : mc.world.blockEntities) {
-            if (!(be instanceof MobSpawnerBlockEntity spawnerBE)) continue;
+        for (int cx = -chunkRadius; cx <= chunkRadius; cx++) {
+            for (int cz = -chunkRadius; cz <= chunkRadius; cz++) {
+                WorldChunk chunk = mc.world.getChunk(center.x + cx, center.z + cz);
+                for (BlockEntity be : chunk.getBlockEntities().values()) {
+                    if (!(be instanceof MobSpawnerBlockEntity spawnerBE)) continue;
 
-            BlockPos pos = be.getPos();
-            double dist = playerPos.distanceTo(new Vec3d(pos.getX() + 0.5, pos.getY() + 0.5, pos.getZ() + 0.5));
-            if (dist > r) continue;
+                    BlockPos pos = be.getPos();
+                    double dist = playerPos.distanceTo(
+                        new Vec3d(pos.getX() + 0.5, pos.getY() + 0.5, pos.getZ() + 0.5)
+                    );
+                    if (dist > r) continue;
 
-            String entityName = getSpawnerEntityName(spawnerBE);
-            nearbySpawners.add(new SpawnerEntry(pos, entityName, dist));
+                    String entityName = getSpawnerEntityName(spawnerBE);
+                    nearbySpawners.add(new SpawnerEntry(pos, entityName, dist));
 
-            if (chatMessage.get() && !announcedSpawners.contains(pos)) {
-                announcedSpawners.add(pos);
-                info("§6[SpawnerInfo] §fYeni spawner bulundu! §eTür: §a" + entityName + " §f| §eMesafe: §a" + String.format("%.1f", dist) + " blok");
+                    if (chatMessage.get() && !announcedSpawners.contains(pos)) {
+                        announcedSpawners.add(pos);
+                        info("§6[SpawnerInfo] §fYeni spawner! §eTür: §a"
+                            + entityName + " §f| §eMesafe: §a"
+                            + String.format("%.1f", dist) + " blok");
+                    }
+                }
             }
         }
     }
@@ -99,61 +111,78 @@ public class SpawnerInfo extends Module {
         if (mc.player == null) return;
 
         for (SpawnerEntry entry : nearbySpawners) {
-            Vec3d renderPos = new Vec3d(
+            Vector3d worldPos = new Vector3d(
                 entry.pos.getX() + 0.5,
                 entry.pos.getY() + 1.8,
                 entry.pos.getZ() + 0.5
             );
 
             Vector3d screenPos = new Vector3d();
-            if (!NametagUtils.to2D(renderPos, 1.0, screenPos)) continue;
+            if (!NametagUtils.to2D(worldPos, 1.0, screenPos)) continue;
 
             NametagUtils.begin(screenPos);
 
-            String line1 = "§lTür: " + entry.entityName;
+            String line1 = "Tür: " + entry.entityName;
             String line2 = String.format("Mesafe: %.1f blok", entry.distance);
 
-            drawText(line1, 0, -20, textColor.get(), event);
-            drawText(line2, 0, -8, distanceColor.get(), event);
+            renderLine(line1, -10, textColor.get());
+            renderLine(line2, 0, distanceColor.get());
 
             NametagUtils.end();
         }
     }
 
-    private void drawText(String text, float x, float y, Color color, Render3DEvent event) {
-        meteordevelopment.meteorclient.renderer.text.TextRenderer renderer =
+    private void renderLine(String text, float yOffset, Color color) {
+        meteordevelopment.meteorclient.renderer.text.TextRenderer tr =
             meteordevelopment.meteorclient.renderer.text.TextRenderer.get();
-
-        float width = renderer.getWidth(text, false);
-        renderer.begin(1.0, false, true);
-        renderer.render(text, x - width / 2f, y, color, false);
-        renderer.end();
+        tr.begin(1.0, false, true);
+        float w = (float) tr.getWidth(text, false);
+        tr.render(text, -w / 2f, yOffset, color, false);
+        tr.end();
     }
 
     private String getSpawnerEntityName(MobSpawnerBlockEntity spawnerBE) {
         try {
-            var logic = spawnerBE.getLogic();
-            var entry = logic.getRenderedEntry();
-            if (entry == null) return "Bilinmiyor";
+            NbtCompound nbt = new NbtCompound();
+            spawnerBE.writeNbt(nbt, mc.world.getRegistryManager());
 
-            EntityType<?> type = entry.type().value();
-            String id = EntityType.getId(type).getPath();
+            String rawId = "bilinmiyor";
 
-            return switch (id) {
-                case "zombie"          -> "Zombie";
-                case "skeleton"        -> "İskelet";
-                case "spider"          -> "Örümcek";
-                case "cave_spider"     -> "Mağara Örümceği";
-                case "blaze"           -> "Blaze";
-                case "creeper"         -> "Creeper";
-                case "magma_cube"      -> "Magma Küpü";
-                case "silverfish"      -> "Gümüş Balık";
-                case "endermite"       -> "Endermite";
-                case "piglin"          -> "Piglin";
-                case "zombified_piglin"-> "Zombie Piglin";
-                case "husk"            -> "Husk";
-                case "stray"           -> "Stray";
-                default                -> capitalize(id.replace("_", " "));
+            if (nbt.contains("SpawnData")) {
+                NbtCompound spawnData = nbt.getCompound("SpawnData");
+                if (spawnData.contains("entity")) {
+                    NbtCompound entity = spawnData.getCompound("entity");
+                    rawId = entity.getString("id");
+                }
+            } else if (nbt.contains("spawn_data")) {
+                NbtCompound spawnData = nbt.getCompound("spawn_data");
+                if (spawnData.contains("entity")) {
+                    NbtCompound entity = spawnData.getCompound("entity");
+                    rawId = entity.getString("id");
+                }
+            }
+
+            String path = rawId.contains(":") ? rawId.split(":")[1] : rawId;
+
+            return switch (path) {
+                case "zombie"           -> "Zombie";
+                case "skeleton"         -> "İskelet";
+                case "spider"           -> "Örümcek";
+                case "cave_spider"      -> "Mağara Örümceği";
+                case "blaze"            -> "Blaze";
+                case "creeper"          -> "Creeper";
+                case "magma_cube"       -> "Magma Küpü";
+                case "silverfish"       -> "Gümüş Balık";
+                case "endermite"        -> "Endermite";
+                case "piglin"           -> "Piglin";
+                case "zombified_piglin" -> "Zombie Piglin";
+                case "husk"             -> "Husk";
+                case "stray"            -> "Stray";
+                case "wither_skeleton"  -> "Wither İskelet";
+                case "guardian"         -> "Guardian";
+                case "elder_guardian"   -> "Elder Guardian";
+                case "drowned"          -> "Drowned";
+                default                 -> capitalize(path.replace("_", " "));
             };
         } catch (Exception e) {
             return "Bilinmiyor";
@@ -162,9 +191,8 @@ public class SpawnerInfo extends Module {
 
     private String capitalize(String s) {
         if (s == null || s.isEmpty()) return s;
-        String[] words = s.split(" ");
         StringBuilder sb = new StringBuilder();
-        for (String w : words) {
+        for (String w : s.split(" ")) {
             if (!w.isEmpty()) {
                 sb.append(Character.toUpperCase(w.charAt(0)));
                 sb.append(w.substring(1).toLowerCase());
