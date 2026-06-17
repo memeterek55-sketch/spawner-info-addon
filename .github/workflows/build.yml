@@ -28,53 +28,13 @@ jobs:
       - name: Grant execute permission for gradlew
         run: chmod +x gradlew
 
-      - name: Prepare Meteor Client (strip Loom version check)
-        run: |
-          set -e
-          SNAPSHOT_JAR="meteor-client-1.21.11-20260425.202124-82.jar"
-          METEOR_URL="https://maven.meteordev.org/snapshots/meteordevelopment/meteor-client/1.21.11-SNAPSHOT/${SNAPSHOT_JAR}"
-          LOCAL_DIR="local-maven/meteordevelopment/meteor-client/1.21.11-LOCAL"
-          mkdir -p "${LOCAL_DIR}"
-
-          echo "Meteor Client indiriliyor..."
-          curl -L -f -o /tmp/meteor-raw.jar "${METEOR_URL}"
-          echo "İndirilen boyut: $(ls -lh /tmp/meteor-raw.jar | awk '{print $5}')"
-
-          echo "MANIFEST.MF'den Fabric-Loom-Version siliniyor..."
-          mkdir -p /tmp/mex
-          cd /tmp/mex
-          jar xf /tmp/meteor-raw.jar
-
-          if [ -f META-INF/MANIFEST.MF ]; then
-            grep "Fabric-Loom-Version" META-INF/MANIFEST.MF || echo "(zaten yok)"
-            sed -i '/^Fabric-Loom-Version/d' META-INF/MANIFEST.MF
-            echo "Sonraki manifest:"
-            cat META-INF/MANIFEST.MF
-          fi
-
-          jar cf "${GITHUB_WORKSPACE}/${LOCAL_DIR}/meteor-client-1.21.11-LOCAL.jar" .
-          echo "JAR oluşturuldu: $(ls -lh ${GITHUB_WORKSPACE}/${LOCAL_DIR}/)"
-
-          cat > "${GITHUB_WORKSPACE}/${LOCAL_DIR}/meteor-client-1.21.11-LOCAL.pom" << 'POMEOF'
-          <?xml version="1.0" encoding="UTF-8"?>
-          <project xmlns="http://maven.apache.org/POM/4.0.0">
-            <modelVersion>4.0.0</modelVersion>
-            <groupId>meteordevelopment</groupId>
-            <artifactId>meteor-client</artifactId>
-            <version>1.21.11-LOCAL</version>
-            <packaging>jar</packaging>
-          </project>
-          POMEOF
-
-          echo "Local Maven hazır."
-
       - name: Build with Gradle
         run: ./gradlew build
 
       - name: Get JAR file
         id: jar
         run: |
-          JAR=$(ls build/libs/*.jar | grep -v sources | grep -v dev | head -1)
+          JAR=$(ls build/libs/*-dev.jar 2>/dev/null || ls build/libs/*.jar | grep -v sources | head -1)
           echo "jar_path=$JAR" >> $GITHUB_OUTPUT
           echo "jar_name=$(basename $JAR)" >> $GITHUB_OUTPUT
 
@@ -83,16 +43,16 @@ jobs:
         if: startsWith(github.ref, 'refs/tags/')
         with:
           files: ${{ steps.jar.outputs.jar_path }}
-          name: "Spawner Info Addon ${{ github.ref_name }}"
+          name: "Ancient Debris Radar ${{ github.ref_name }}"
           body: |
-            ## Spawner Info Addon ${{ github.ref_name }}
+            ## Ancient Debris Radar ${{ github.ref_name }}
 
-            Meteor Client için spawner bilgi modülü.
+            Meteor Client için Ancient Debris radar modülü.
 
             ### Özellikler
-            - Spawner türünü ve mesafesini 3D etiketle gösterir
-            - Yeni spawner bulunduğunda chat'e mesaj atar
-            - Menzil ve renk ayarları
+            - 464.000+ koordinat içinde yakındaki Ancient Debris'i dairesel radar'da gösterir
+            - Render mesafesi, daire boyutu, renk ve konum ayarları
+            - Sağ tık → ayarlar ile yapılandırılabilir
 
             ### Kurulum
             JAR dosyasını Minecraft `mods` klasörüne at.
