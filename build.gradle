@@ -1,5 +1,5 @@
 plugins {
-    id 'fabric-loom' version '1.10.5'
+    id 'fabric-loom' version '1.16-SNAPSHOT'
     id 'maven-publish'
 }
 
@@ -7,16 +7,16 @@ version = project.mod_version
 group = project.maven_group
 
 repositories {
-    maven { url rootProject.uri('local-maven') }
+    maven { url 'https://maven.fabricmc.net/' }
     maven { url 'https://maven.meteordev.org/releases' }
     maven { url 'https://maven.meteordev.org/snapshots' }
 }
 
 dependencies {
     minecraft "com.mojang:minecraft:${project.minecraft_version}"
-    mappings "net.fabricmc:yarn:${project.yarn_mappings}"
+    mappings "net.fabricmc:yarn:${project.yarn_mappings}:v2"
     modImplementation "net.fabricmc:fabric-loader:${project.loader_version}"
-    modCompileOnly "meteordevelopment:meteor-client:1.21.11-LOCAL"
+    modImplementation "meteordevelopment:meteor-client:${project.meteor_version}"
 }
 
 processResources {
