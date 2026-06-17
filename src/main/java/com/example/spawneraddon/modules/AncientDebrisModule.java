@@ -3,7 +3,6 @@ package com.example.spawneraddon.modules;
 import com.example.spawneraddon.data.DebrisData;
 import meteordevelopment.meteorclient.events.render.Render2DEvent;
 import meteordevelopment.meteorclient.events.render.Render3DEvent;
-import meteordevelopment.meteorclient.events.world.TickEvent;
 import meteordevelopment.meteorclient.renderer.ShapeMode;
 import meteordevelopment.meteorclient.settings.*;
 import meteordevelopment.meteorclient.systems.modules.Categories;
@@ -11,12 +10,8 @@ import meteordevelopment.meteorclient.systems.modules.Module;
 import meteordevelopment.meteorclient.utils.render.color.Color;
 import meteordevelopment.meteorclient.utils.render.color.SettingColor;
 import meteordevelopment.orbit.EventHandler;
-import net.minecraft.block.Blocks;
 import net.minecraft.client.gui.DrawContext;
-import net.minecraft.util.math.BlockPos;
-import net.minecraft.world.chunk.WorldChunk;
 
-import java.util.ArrayList;
 import java.util.List;
 
 public class AncientDebrisModule extends Module {
@@ -29,20 +24,14 @@ public class AncientDebrisModule extends Module {
     // ==================== GENEL ====================
     private final Setting<Integer> radarMesafe = sgGenel.add(new IntSetting.Builder()
         .name("radar-mesafe")
-        .description("Radar icin koordinat arama yaricapi (blok). Buyuk olabilir, sadece 2D gosterim.")
-        .defaultValue(256).min(32).sliderMax(1024)
+        .description("Radar icin X,Z yaricapi (blok). Buyuk olabilir.")
+        .defaultValue(256).min(32).sliderMax(2048)
         .build());
 
     private final Setting<Integer> espMesafe = sgGenel.add(new IntSetting.Builder()
         .name("esp-mesafe")
-        .description("ESP icin koordinat arama yaricapi. Chunk yuklu olmali, kucuk tutun.")
-        .defaultValue(64).min(8).sliderMax(256)
-        .build());
-
-    private final Setting<Integer> taramaAraligi = sgGenel.add(new IntSetting.Builder()
-        .name("tarama-araligi-tick")
-        .description("Kac tickte bir ESP bloklari yeniden taransin (20=1sn).")
-        .defaultValue(40).min(10).sliderMax(200)
+        .description("ESP icin X,Z yaricapi (blok). Cok buyuk yapma, FPS duser.")
+        .defaultValue(64).min(8).sliderMax(512)
         .build());
 
     // ==================== RADAR ====================
@@ -53,14 +42,12 @@ public class AncientDebrisModule extends Module {
         .build());
 
     private final Setting<Integer> radarGenislik = sgRadar.add(new IntSetting.Builder()
-        .name("radar-genislik")
-        .description("Oval radar yatay yaricapi (piksel).")
+        .name("radar-genislik").description("Oval radar yatay yaricapi (piksel).")
         .defaultValue(110).min(40).sliderMax(300)
         .build());
 
     private final Setting<Integer> radarYukseklik = sgRadar.add(new IntSetting.Builder()
-        .name("radar-yukseklik")
-        .description("Oval radar dikey yaricapi (piksel).")
+        .name("radar-yukseklik").description("Oval radar dikey yaricapi (piksel).")
         .defaultValue(75).min(30).sliderMax(300)
         .build());
 
@@ -113,104 +100,40 @@ public class AncientDebrisModule extends Module {
     private final Setting<SettingColor> espKenarRengi = sgESP.add(new ColorSetting.Builder()
         .name("kenar-rengi").defaultValue(new SettingColor(255, 140, 0, 220)).build());
 
-    // ==================== DURUM ====================
-    // ESP: gercekte bulunan blok pozisyonlari (tam X,Y,Z)
-    private final List<BlockPos> espBloklari = new ArrayList<>();
-    private int tickSayac = 0;
-
     private static final Color tmpSide = new Color();
     private static final Color tmpLine = new Color();
 
     public AncientDebrisModule() {
         super(Categories.Render, "ancient-debris",
-            "464k Ancient Debris koordinatini radar+ESP ile gosterir. ESP sadece gercekte var olan bloklari cizip dogru Y'yi bulur.");
+            "497k Ancient Debris koordinatini (X,Y,Z) radar+ESP ile gosterir. Chunk taramasi yok.");
         DebrisData.load();
     }
 
     @Override
     public void onActivate() {
         DebrisData.load();
-        espBloklari.clear();
-        tickSayac = 0;
-        espTara();
     }
 
-    @Override
-    public void onDeactivate() {
-        espBloklari.clear();
-    }
-
-    // ==================== TICK ====================
+    // ==================== RENDER 3D: ESP ====================
+    // DebrisData'dan X,Y,Z aliyoruz — chunk taramasina GEREK YOK.
+    // Koordinat dosyasinda blok gercekten vardi, tam Y biliniyor.
     @EventHandler
-    private void onTick(TickEvent.Pre event) {
-        if (mc.player == null || mc.world == null) return;
-        tickSayac++;
-        if (tickSayac >= taramaAraligi.get()) {
-            tickSayac = 0;
-            espTara();
-        }
-    }
-
-    /**
-     * DebrisData'dan yakın X,Z koordinatlarını alır.
-     * Her koordinat için chunk yüklüyse gerçek Y'yi tarar.
-     * Blok gerçekten Ancient Debris ise listeye ekler.
-     */
-    private void espTara() {
-        espBloklari.clear();
-        if (mc.player == null || mc.world == null) return;
+    private void onRender3D(Render3DEvent event) {
+        if (!espAktif.get() || mc.player == null) return;
 
         double px = mc.player.getX();
         double pz = mc.player.getZ();
         int r = espMesafe.get();
 
-        // DebrisData: tüm 464k içinden yakın X,Z çiftleri
-        List<int[]> yakin = DebrisData.getNearby(px, pz, r);
-
-        BlockPos.Mutable mut = new BlockPos.Mutable();
-
-        for (int[] coord : yakin) {
-            int bx = coord[0];
-            int bz = coord[1];
-            int chunkX = bx >> 4;
-            int chunkZ = bz >> 4;
-
-            if (!mc.world.isChunkLoaded(chunkX, chunkZ)) continue;
-            WorldChunk chunk = mc.world.getChunk(chunkX, chunkZ);
-
-            // Nether'da Ancient Debris Y=8..122 arasında çıkabilir
-            // Chunk section'larını kullanarak verimli tara
-            var sections = chunk.getSectionArray();
-            for (int si = 0; si < sections.length; si++) {
-                var sec = sections[si];
-                if (sec == null || sec.isEmpty()) continue;
-                int baseY = chunk.sectionIndexToCoord(si);
-                if (baseY > 122 || baseY + 15 < 0) continue;
-
-                int lx = bx & 15;
-                int lz = bz & 15;
-                for (int by = 0; by < 16; by++) {
-                    if (sec.getBlockState(lx, by, lz).getBlock() == Blocks.ANCIENT_DEBRIS) {
-                        mut.set(bx, baseY + by, bz);
-                        espBloklari.add(mut.toImmutable());
-                    }
-                }
-            }
-        }
-    }
-
-    // ==================== RENDER 3D: ESP ====================
-    @EventHandler
-    private void onRender3D(Render3DEvent event) {
-        if (!espAktif.get() || mc.player == null) return;
-
         tmpSide.set(espDolguRengi.get());
         tmpLine.set(espKenarRengi.get());
 
-        for (BlockPos pos : espBloklari) {
+        List<int[]> yakin = DebrisData.getNearby(px, pz, r);
+        for (int[] c : yakin) {
+            // c[0]=X, c[1]=Y, c[2]=Z — tam pozisyon
             event.renderer.box(
-                pos.getX(), pos.getY(), pos.getZ(),
-                pos.getX() + 1, pos.getY() + 1, pos.getZ() + 1,
+                c[0], c[1], c[2],
+                c[0] + 1, c[1] + 1, c[2] + 1,
                 tmpSide, tmpLine, sekil.get(), 0
             );
         }
@@ -237,7 +160,6 @@ public class AncientDebrisModule extends Module {
 
         drawEllipseOutline(ctx, cx, cy, rx, ry, 2, cemberRengi.get().getPacked());
 
-        // Radar: DebrisData'dan geniş menzilde koordinatlar (radar-mesafe)
         double px = mc.player.getX();
         double pz = mc.player.getZ();
         int rMesafe = radarMesafe.get();
@@ -245,9 +167,9 @@ public class AncientDebrisModule extends Module {
         int ns = noktaBoyutu.get();
 
         List<int[]> radarKoord = DebrisData.getNearby(px, pz, rMesafe);
-        for (int[] coord : radarKoord) {
-            double dx = coord[0] + 0.5 - px;
-            double dz = coord[1] + 0.5 - pz;
+        for (int[] c : radarKoord) {
+            double dx = c[0] + 0.5 - px;
+            double dz = c[2] + 0.5 - pz;
             double dist = Math.sqrt(dx * dx + dz * dz);
             double oran = Math.min(dist / rMesafe, 1.0);
             double aci  = Math.atan2(dz, dx);
@@ -262,13 +184,11 @@ public class AncientDebrisModule extends Module {
             }
         }
 
-        // Oyuncu merkezi
         fillDot(ctx, cx, cy, 4, oyuncuRengi.get().getPacked());
 
-        // Radar koordinat sayısı + ESP blok sayısı
-        String radarText = "Radar: " + radarKoord.size() + "  ESP: " + espBloklari.size();
-        ctx.drawText(mc.textRenderer, radarText,
-            cx - mc.textRenderer.getWidth(radarText) / 2,
+        String bilgi = "Radar:" + radarKoord.size() + " ESP:" + DebrisData.getNearby(px, pz, espMesafe.get()).size();
+        ctx.drawText(mc.textRenderer, bilgi,
+            cx - mc.textRenderer.getWidth(bilgi) / 2,
             cy + ry + 3, 0xFFFFAA00, true);
     }
 
